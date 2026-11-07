@@ -4,7 +4,6 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
-import aiohttp
 import voluptuous as vol
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -12,7 +11,7 @@ from .api import KerblClient
 from .const import CONF_ACCESS_TOKEN, CONF_REFRESH_TOKEN, DOMAIN
 from .coordinator import KerblCoordinator
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH]
 
 type KerblConfigEntry = ConfigEntry[KerblCoordinator]
 
@@ -52,35 +51,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: KerblConfigEntry) -> boo
             supports_response=SupportsResponse.ONLY,
         )
 
-    if not hass.services.has_service(DOMAIN, "web_grep"):
-        async def _web_grep(call: ServiceCall) -> ServiceResponse:
-            """Fetch a file from the Kerbl web app and return regex matches (debug)."""
-            import re
-
-            url = call.data["url"]
-            if not url.startswith("https://app.kerbl-iot.com/"):
-                return {"error": "only https://app.kerbl-iot.com/ is allowed"}
-            session = async_get_clientsession(hass)
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
-                text = await resp.text(errors="replace")
-            pattern = call.data.get("pattern")
-            if not pattern:
-                return {"status": resp.status, "length": len(text), "head": text[:3000]}
-            ctx = int(call.data.get("context", 120))
-            hits = []
-            for m in re.finditer(pattern, text):
-                hits.append(text[max(0, m.start() - ctx): m.end() + ctx])
-                if len(hits) >= 40:
-                    break
-            return {"status": resp.status, "length": len(text), "matches": hits}
-
-        hass.services.async_register(
-            DOMAIN,
-            "web_grep",
-            _web_grep,
-            schema=vol.Schema({vol.Required("url"): str, vol.Optional("pattern"): str, vol.Optional("context"): int}),
-            supports_response=SupportsResponse.ONLY,
-        )
     return True
 
 

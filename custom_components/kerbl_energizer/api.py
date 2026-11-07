@@ -92,6 +92,33 @@ class KerblClient:
         except aiohttp.ClientError as err:
             raise KerblApiError(f"{path}: {err}") from err
 
+    async def send_command(self, device_id: str, command: str, value: Any, retry: bool = True) -> Any:
+        """PATCH /device/smart-energizer/{id}/command/{command} with {"value": value}.
+
+        Same call the Kerbl Welt web app makes (sendCommandToSmartEnergizer),
+        e.g. command "mode" with value True/False for on/off.
+        """
+        if not self.access_token:
+            await self.sign_in()
+        path = f"/device/smart-energizer/{device_id}/command/{command}"
+        try:
+            async with self._session.patch(
+                f"{BASE_URL}{path}",
+                json={"value": value},
+                headers={"Authorization": f"Bearer {self.access_token}"},
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status == 401 and retry:
+                    if not await self._refresh():
+                        await self.sign_in()
+                    return await self.send_command(device_id, command, value, retry=False)
+                text = await resp.text()
+                if resp.status not in (200, 201, 204):
+                    raise KerblApiError(f"{path}: HTTP {resp.status} {text[:200]}")
+                return text
+        except aiohttp.ClientError as err:
+            raise KerblApiError(f"{path}: {err}") from err
+
     async def get_devices_raw(self) -> dict[str, Any]:
         """Full GET /device response (all device groups)."""
         return await self._get("/device")

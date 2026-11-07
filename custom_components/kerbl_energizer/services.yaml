@@ -5,17 +5,3 @@ api_get:
       example: device/smart-energizer/<id>/log
       selector:
         text:
-web_grep:
-  fields:
-    url:
-      required: true
-      selector:
-        text:
-    pattern:
-      selector:
-        text:
-    context:
-      selector:
-        number:
-          min: 0
-          max: 2000
