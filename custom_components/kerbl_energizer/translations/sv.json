@@ -36,6 +36,24 @@
           "description": "Path under /api/v0.1"
         }
       }
+    },
+    "web_grep": {
+      "name": "Web grep (debug)",
+      "description": "Search a file of the Kerbl web app.",
+      "fields": {
+        "url": {
+          "name": "URL",
+          "description": "https://app.kerbl-iot.com/..."
+        },
+        "pattern": {
+          "name": "Pattern",
+          "description": "Regex"
+        },
+        "context": {
+          "name": "Context",
+          "description": "Chars around match"
+        }
+      }
     }
   }
 }
