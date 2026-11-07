@@ -13,7 +13,7 @@ from .const import CONF_ACCESS_TOKEN, CONF_REFRESH_TOKEN
 TO_REDACT = {
     CONF_EMAIL, CONF_PASSWORD, CONF_ACCESS_TOKEN, CONF_REFRESH_TOKEN,
     "email", "mac", "identifier", "linkingIdentifier", "imei", "iccid", "serialNumber",
-    "latitude", "longitude", "lat", "lng", "lon", "telephoneNumber", "emailAddressesNotifications",
+    "latitude", "longitude", "position", "onboardingIdentifier", "lat", "lng", "lon", "telephoneNumber", "emailAddressesNotifications",
 }
 
 

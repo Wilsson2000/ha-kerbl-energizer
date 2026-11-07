@@ -1,15 +1,35 @@
-"""Binary sensors: every boolean top-level field of an energizer."""
+"""Binary sensors for Kerbl smart energizers."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import KerblConfigEntry
 from .coordinator import KerblCoordinator
 from .entity import KerblEntity
+
+
+@dataclass(frozen=True)
+class Spec:
+    name: str
+    device_class: BinarySensorDeviceClass | None = None
+    category: EntityCategory | None = None
+    enabled: bool = True
+    icon: str | None = None
+
+
+KNOWN: dict[str, Spec] = {
+    "isOnline": Spec("Uppkopplad", BinarySensorDeviceClass.CONNECTIVITY, EntityCategory.DIAGNOSTIC),
+    "active": Spec("Påslaget", BinarySensorDeviceClass.POWER, icon="mdi:fence-electric"),
+    "doDesiredAndActualStateMatch": Spec("Inställningar synkade", category=EntityCategory.DIAGNOSTIC, icon="mdi:sync"),
+    "pushNotifications": Spec("Push-notiser i appen", category=EntityCategory.DIAGNOSTIC, enabled=False),
+    "emailNotifications": Spec("E-postnotiser i appen", category=EntityCategory.DIAGNOSTIC, enabled=False),
+}
 
 
 def _label(key: str) -> str:
@@ -24,12 +44,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: KerblConfigEntry, async_
     def _add_new() -> None:
         new = []
         for device_id, data in coordinator.data.items():
+            low_uid = f"{device_id}_low_fence_voltage"
+            if low_uid not in known and "fenceVoltage" in data:
+                known.add(low_uid)
+                new.append(KerblLowVoltage(coordinator, device_id))
             for key, value in data.items():
                 uid = f"{device_id}_{key}"
                 if uid in known or not isinstance(value, bool):
                     continue
                 known.add(uid)
-                new.append(KerblBoolSensor(coordinator, device_id, key))
+                spec = KNOWN.get(key, Spec(_label(key), enabled=False))
+                new.append(KerblBoolSensor(coordinator, device_id, key, spec))
         if new:
             async_add_entities(new)
 
@@ -38,13 +63,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: KerblConfigEntry, async_
 
 
 class KerblBoolSensor(KerblEntity, BinarySensorEntity):
-    def __init__(self, coordinator: KerblCoordinator, device_id: str, key: str) -> None:
+    def __init__(self, coordinator: KerblCoordinator, device_id: str, key: str, spec: Spec) -> None:
         super().__init__(coordinator, device_id, key)
-        self._attr_name = _label(key)
-        if key == "isOnline":
-            self._attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+        self._attr_name = spec.name
+        self._attr_device_class = spec.device_class
+        self._attr_entity_category = spec.category
+        self._attr_entity_registry_enabled_default = spec.enabled
+        if spec.icon:
+            self._attr_icon = spec.icon
 
     @property
     def is_on(self) -> bool | None:
         value = self.device_data.get(self._key)
         return value if isinstance(value, bool) else None
+
+
+class KerblLowVoltage(KerblEntity, BinarySensorEntity):
+    """On when fence voltage is below the alarm threshold set in the app."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_name = "Låg stängselspänning"
+
+    def __init__(self, coordinator: KerblCoordinator, device_id: str) -> None:
+        super().__init__(coordinator, device_id, "low_fence_voltage")
+
+    @property
+    def is_on(self) -> bool | None:
+        data = self.device_data
+        volt, limit = data.get("fenceVoltage"), data.get("fenceVoltageAlarmThreshold")
+        if not isinstance(volt, (int, float)) or not isinstance(limit, (int, float)):
+            return None
+        return volt < limit
+
+    @property
+    def extra_state_attributes(self):
+        data = self.device_data
+        return {"stangselspanning_kv": data.get("fenceVoltage"), "larmgrans_kv": data.get("fenceVoltageAlarmThreshold")}
