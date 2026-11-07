@@ -25,7 +25,7 @@ class Spec:
 
 KNOWN: dict[str, Spec] = {
     "isOnline": Spec("Uppkopplad", BinarySensorDeviceClass.CONNECTIVITY, EntityCategory.DIAGNOSTIC),
-    "active": Spec("Påslaget", BinarySensorDeviceClass.POWER, icon="mdi:fence-electric"),
+    "active": Spec("Aktiverad i kontot", category=EntityCategory.DIAGNOSTIC),
     "doDesiredAndActualStateMatch": Spec("Inställningar synkade", category=EntityCategory.DIAGNOSTIC, icon="mdi:sync"),
     "pushNotifications": Spec("Push-notiser i appen", category=EntityCategory.DIAGNOSTIC, enabled=False),
     "emailNotifications": Spec("E-postnotiser i appen", category=EntityCategory.DIAGNOSTIC, enabled=False),
@@ -44,6 +44,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: KerblConfigEntry, async_
     def _add_new() -> None:
         new = []
         for device_id, data in coordinator.data.items():
+            run_uid = f"{device_id}_running"
+            if run_uid not in known and "mode" in data:
+                known.add(run_uid)
+                new.append(KerblRunning(coordinator, device_id))
             low_uid = f"{device_id}_low_fence_voltage"
             if low_uid not in known and "fenceVoltage" in data:
                 known.add(low_uid)
@@ -99,3 +103,25 @@ class KerblLowVoltage(KerblEntity, BinarySensorEntity):
     def extra_state_attributes(self):
         data = self.device_data
         return {"stangselspanning_kv": data.get("fenceVoltage"), "larmgrans_kv": data.get("fenceVoltageAlarmThreshold")}
+
+
+class KerblRunning(KerblEntity, BinarySensorEntity):
+    """On while the energizer is pulsing.
+
+    Seen on a Duo Power Xi8000: switching off in the app sets mode 1 -> 0,
+    fenceVoltage -> 0 and adds 8 to currentError, while 'active' stays true.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+    _attr_name = "Igång"
+    _attr_icon = "mdi:fence-electric"
+
+    def __init__(self, coordinator: KerblCoordinator, device_id: str) -> None:
+        super().__init__(coordinator, device_id, "running")
+
+    @property
+    def is_on(self) -> bool | None:
+        mode = self.device_data.get("mode")
+        if not isinstance(mode, (int, float)) or isinstance(mode, bool):
+            return None
+        return mode != 0
