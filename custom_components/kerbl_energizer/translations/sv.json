@@ -25,5 +25,17 @@
       "already_configured": "Kontot är redan tillagt",
       "reauth_successful": "Inloggningen uppdaterad"
     }
+  },
+  "services": {
+    "api_get": {
+      "name": "API GET (debug)",
+      "description": "Read-only GET against the Kerbl Welt API.",
+      "fields": {
+        "path": {
+          "name": "Path",
+          "description": "Path under /api/v0.1"
+        }
+      }
+    }
   }
 }

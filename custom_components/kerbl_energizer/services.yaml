@@ -1,0 +1,7 @@
+api_get:
+  fields:
+    path:
+      required: true
+      example: device/smart-energizer/<id>/log
+      selector:
+        text:
